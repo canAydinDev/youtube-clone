@@ -25,6 +25,14 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
 
 interface FormSectionProps {
   videoId: string;
@@ -45,14 +53,27 @@ const FormSectionSkeleton = () => {
 };
 
 export const FormSectionSuspence = ({ videoId }: FormSectionProps) => {
+  const utils = trpc.useUtils();
   const [video] = trpc.studio.getOne.useSuspenseQuery({ id: videoId });
+  const [categories] = trpc.categories.getMany.useSuspenseQuery();
+
+  const update = trpc.videos.update.useMutation({
+    onSuccess: () => {
+      utils.studio.getMany.invalidate();
+      utils.studio.getOne.invalidate({ id: videoId });
+      toast.success("Video updated");
+    },
+    onError: () => {
+      toast.error("Something went wrong");
+    },
+  });
 
   const form = useForm<z.infer<typeof videoUpdateSchema>>({
     resolver: zodResolver(videoUpdateSchema),
     defaultValues: video,
   });
-  const onSubmit = async (data: z.infer<typeof videoUpdateSchema>) => {
-    console.log(data);
+  const onSubmit = (data: z.infer<typeof videoUpdateSchema>) => {
+    update.mutate(data);
   };
 
   return (
@@ -66,7 +87,7 @@ export const FormSectionSuspence = ({ videoId }: FormSectionProps) => {
             </p>
           </div>
           <div className="flex items-center gap-x-2">
-            <Button type="submit" disabled={false}>
+            <Button type="submit" disabled={update.isPending}>
               Save
             </Button>
             <DropdownMenu>
@@ -101,7 +122,7 @@ export const FormSectionSuspence = ({ videoId }: FormSectionProps) => {
                   <FormMessage />
                 </FormItem>
               )}
-            ></FormField>
+            />
             <FormField
               control={form.control}
               name="description"
@@ -123,7 +144,35 @@ export const FormSectionSuspence = ({ videoId }: FormSectionProps) => {
                   <FormMessage />
                 </FormItem>
               )}
-            ></FormField>
+            />
+            {/* TODO: Add thumbnail field here */}
+            <FormField
+              control={form.control}
+              name="categoryId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Category</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value ?? undefined}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {categories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
         </div>
       </form>
